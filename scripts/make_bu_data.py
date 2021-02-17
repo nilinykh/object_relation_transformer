@@ -46,8 +46,11 @@ for infile in infiles:
             for field in ['boxes', 'features']:
                 item[field] = np.frombuffer(base64.decodestring(item[field]), 
                         dtype=np.float32).reshape((item['num_boxes'],-1))
+            # attention features for all bounding boxes
             np.savez_compressed(os.path.join(args.output_dir+'_att', str(item['image_id'])), feat=item['features'])
+            # mean over all object features - image features for the image as a whole
             np.save(os.path.join(args.output_dir+'_fc', str(item['image_id'])), item['features'].mean(0))
+            # bounding boxes
             np.save(os.path.join(args.output_dir+'_box', str(item['image_id'])), item['boxes'])
 
 

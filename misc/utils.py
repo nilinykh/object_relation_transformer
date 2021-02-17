@@ -373,7 +373,7 @@ def want_to_continue(found_issue):
     yes = {'yes','y', 'ye', 'Y'}
     no = {'no','n','','N'}
 
-    choice = raw_input().lower()
+    choice = input().lower()
     if choice in yes:
         return True
     elif choice in no:

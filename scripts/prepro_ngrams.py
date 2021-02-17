@@ -26,7 +26,7 @@ The json file has a dict that contains:
 import os
 import json
 import argparse
-from six.moves import cPickle
+import pickle
 from collections import defaultdict
 
 def precook(s, n=4, out=False):
@@ -40,8 +40,8 @@ def precook(s, n=4, out=False):
   """
   words = s.split()
   counts = defaultdict(int)
-  for k in xrange(1,n+1):
-    for i in xrange(len(words)-k+1):
+  for k in range(1,n+1):
+    for i in range(len(words)-k+1):
       ngram = tuple(words[i:i+k])
       counts[ngram] += 1
   return counts
@@ -73,7 +73,7 @@ def compute_doc_freq(crefs):
   document_frequency = defaultdict(float)
   for refs in crefs:
     # refs, k ref captions of one image
-    for ngram in set([ngram for ref in refs for (ngram,count) in ref.iteritems()]):
+    for ngram in set([ngram for ref in refs for (ngram,count) in ref.items()]):
       document_frequency[ngram] += 1
       # maxcounts[ngram] = max(maxcounts.get(ngram,0), count)
   return document_frequency
@@ -116,17 +116,17 @@ def main(params):
 
   ngram_words, ngram_idxs, ref_len = build_dict(imgs, wtoi, params)
 
-  cPickle.dump({'document_frequency': ngram_words, 'ref_len': ref_len}, open(params['output_pkl']+'-words.p','w'), protocol=cPickle.HIGHEST_PROTOCOL)
-  cPickle.dump({'document_frequency': ngram_idxs, 'ref_len': ref_len}, open(params['output_pkl']+'-idxs.p','w'), protocol=cPickle.HIGHEST_PROTOCOL)
+  pickle.dump({'document_frequency': ngram_words, 'ref_len': ref_len}, open(params['output_pkl']+'-words.p','wb'), protocol=pickle.HIGHEST_PROTOCOL)
+  pickle.dump({'document_frequency': ngram_idxs, 'ref_len': ref_len}, open(params['output_pkl']+'-idxs.p','wb'), protocol=pickle.HIGHEST_PROTOCOL)
 
 if __name__ == "__main__":
 
   parser = argparse.ArgumentParser()
 
   # input json
-  parser.add_argument('--input_json', default='/home-nfs/rluo/rluo/nips/code/prepro/dataset_coco.json', help='input json file to process into hdf5')
-  parser.add_argument('--dict_json', default='data/cocotalk.json', help='output json file')
-  parser.add_argument('--output_pkl', default='data/coco-all', help='output pickle file')
+  parser.add_argument('--input_json', default='../data/dataset_coco.json', help='input json file to process into hdf5')
+  parser.add_argument('--dict_json', default='../data/cocotalk.json', help='output json file')
+  parser.add_argument('--output_pkl', default='../data/coco-all', help='output pickle file')
   parser.add_argument('--split', default='all', help='test, val, train, all')
   args = parser.parse_args()
   params = vars(args) # convert to ordinary dict

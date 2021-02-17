@@ -40,6 +40,8 @@ import torch
 import torchvision.models as models
 import skimage.io
 
+sys.path.append('/home/xilini/object_relation_transformer/')
+
 from torchvision import transforms as trn
 preprocess = trn.Compose([
         #trn.ToTensor(),

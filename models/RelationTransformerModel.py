@@ -498,7 +498,7 @@ class RelationTransformerModel(CaptionModel):
 
     def _sample_beam(self, fc_feats, att_feats, boxes, att_masks=None, opt={}):
         beam_size = opt.get('beam_size', 10)
-        batch_size = fc_feats.size(0)
+        batch_size = att_feats.size(0)
 
         att_feats, boxes, seq, att_masks, seq_mask = self._prepare_feature(att_feats, att_masks, boxes)
         memory = self.model.encode(att_feats, boxes, att_masks)
@@ -516,7 +516,7 @@ class RelationTransformerModel(CaptionModel):
 
             for t in range(1):
                 if t == 0: # input <bos>
-                    it = fc_feats.new_zeros([beam_size], dtype=torch.long)
+                    it = att_feats.new_zeros([beam_size], dtype=torch.long)
 
                 logprobs, state = self.get_logprobs_state(it, tmp_memory, tmp_att_masks, state)
 

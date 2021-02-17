@@ -51,12 +51,14 @@ class DataLoader(data.Dataset):
         print('vocab size is ', self.vocab_size)
 
         # open the hdf5 file
-        print('DataLoader loading h5 file: ', opt.input_fc_dir, opt.input_att_dir, opt.input_box_dir, opt.input_label_h5)
+        print('DataLoader is getting the feature information:', opt.input_feat_dir)
+        #print('DataLoader loading h5 file: ', opt.input_fc_dir, opt.input_att_dir, opt.input_box_dir, opt.input_label_h5)
         self.h5_label_file = h5py.File(self.opt.input_label_h5, 'r', driver='core')
 
-        self.input_fc_dir = self.opt.input_fc_dir
-        self.input_att_dir = self.opt.input_att_dir
-        self.input_box_dir = self.opt.input_box_dir
+        self.input_feat_dir = self.opt.input_feat_dir
+        #self.input_fc_dir = self.opt.input_fc_dir
+        #self.input_att_dir = self.opt.input_att_dir
+        #self.input_box_dir = self.opt.input_box_dir
 
         # load in the sequence data
         seq_size = self.h5_label_file['labels'].shape
@@ -79,8 +81,9 @@ class DataLoader(data.Dataset):
                 self.split_ix['val'].append(ix)
             elif img['split'] == 'test':
                 self.split_ix['test'].append(ix)
-            elif opt.train_only == 0: # restval
-                self.split_ix['train'].append(ix)
+            # TODO: extract features for restval images
+            #elif opt.train_only == 0: # restval
+            #    self.split_ix['train'].append(ix)
 
         print('assigned %d images to split train' %len(self.split_ix['train']))
         print('assigned %d images to split val' %len(self.split_ix['val']))
@@ -211,7 +214,7 @@ class DataLoader(data.Dataset):
         """
         ix = index #self.split_ix[index]
         if self.use_att:
-            att_feat = np.load(os.path.join(self.input_att_dir, str(self.info['images'][ix]['id']) + '.npz'))['feat']
+            att_feat = np.load(os.path.join(self.input_feat_dir, str(self.info['images'][ix]['id']) + '.npz'))['feat']
             # Reshape to K x C
             att_feat = att_feat.reshape(-1, att_feat.shape[-1])
             if self.norm_att_feat:
@@ -220,16 +223,15 @@ class DataLoader(data.Dataset):
                 box_file = os.path.join(self.rel_bboxes_dir,str(self.info['images'][ix]['id']) + '.npy')
                 box_coords = np.load(box_file)
                 areas = np.expand_dims(utils.get_box_areas(box_coords), axis=1)
-
                 box_coords_with_area = np.concatenate([box_coords, areas],axis=-1)
-                return (np.load(os.path.join(self.input_fc_dir, str(self.info['images'][ix]['id']) + '.npy')),
+                return (None,
                         att_feat,
                         box_coords,
                         ix)
 
         else:
             att_feat = np.zeros((1,1,1))
-        return (np.load(os.path.join(self.input_fc_dir, str(self.info['images'][ix]['id']) + '.npy')),
+        return (None,
                 att_feat,
                 ix)
 
