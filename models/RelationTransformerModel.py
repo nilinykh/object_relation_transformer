@@ -31,6 +31,9 @@ import copy
 import math
 import numpy as np
 
+base = '/home/xilini/object_relation_transformer/data/representations/'
+img_num = 0
+
 from .CaptionModel import CaptionModel
 from .AttModel import sort_pack_padded_sequence, pad_unsort_packed_sequence, pack_wrapper
 
@@ -81,8 +84,35 @@ class Encoder(nn.Module):
 
     def forward(self, x, box, mask):
         "Pass the input (and mask) through each layer in turn."
+                
+        multihead_enc_token_emb = torch.Tensor(()).to(device='cuda:0')
+        multihead_enc_context_emb = torch.Tensor(()).to(device='cuda:0')
+        multihead_enc_attn = torch.Tensor(()).to(device='cuda:0')        
+        
         for layer in self.layers:
-            x = layer(x, box, mask)
+                        
+            x,\
+            enc_token_emb,\
+            enc_context_emb,\
+            enc_attn = layer(x, box, mask)
+            
+            if enc_token_emb is not None:
+                multihead_enc_token_emb = torch.cat((multihead_enc_token_emb, enc_token_emb), 0)
+                multihead_enc_context_emb = torch.cat((multihead_enc_context_emb, enc_context_emb), 0)
+                multihead_enc_attn = torch.cat((multihead_enc_attn, enc_attn), 0)
+                x = x
+
+            else:
+                x = x
+                
+        if multihead_enc_token_emb.shape[0] == 6: # collected all layers
+            torch.save(multihead_enc_attn, base + f'test_enc_attn/{img_num}.pt')
+            torch.save(multihead_enc_context_emb, base + f'test_enc_context_emb/{img_num}.pt')
+            torch.save(multihead_enc_token_emb, base + f'test_enc_token_emb/{img_num}.pt')
+            #print(multihead_enc_attn.shape)
+            #print(multihead_enc_context_emb.shape)
+            #print(multihead_enc_token_emb.shape)
+                              
         return self.norm(x)
 
 class LayerNorm(nn.Module):
@@ -122,9 +152,22 @@ class EncoderLayer(nn.Module):
         self.size = size
 
     def forward(self, x, box, mask):
+        #print('ENCODER LAYER')
         "Follow Figure 1 (left) for connections."
-        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, box, mask))
-        return self.sublayer[1](x, self.feed_forward)
+        
+        enc_token_emb, enc_context_emb, enc_attn = self.self_attn(x, x, x, box, mask, one_out=None)
+        
+        if enc_context_emb is not None and enc_attn is not None:
+            x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, box, mask, one_out=True))
+            return self.sublayer[1](x, self.feed_forward),\
+                   enc_token_emb,\
+                   enc_context_emb,\
+                   enc_attn
+        
+        else:
+            x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, box, mask, one_out=True))
+            return self.sublayer[1](x, self.feed_forward),\
+                   None, None, None
 
 class Decoder(nn.Module):
     "Generic N layer decoder with masking."
@@ -134,8 +177,56 @@ class Decoder(nn.Module):
         self.norm = LayerNorm(layer.size)
 
     def forward(self, x, memory, src_mask, tgt_mask):
+        
+        global img_num
+        
+        multihead_dec_token_emb = torch.Tensor(()).to(device='cuda:0')
+        multihead_dec_context_emb = torch.Tensor(()).to(device='cuda:0')
+        multihead_dec_attn = torch.Tensor(()).to(device='cuda:0')
+        multihead_encdec_token_emb = torch.Tensor(()).to(device='cuda:0')
+        multihead_encdec_context_emb = torch.Tensor(()).to(device='cuda:0')
+        multihead_encdec_attn = torch.Tensor(()).to(device='cuda:0')
+        
+        
         for layer in self.layers:
-            x = layer(x, memory, src_mask, tgt_mask)
+            
+            x,\
+            dec_token_emb,\
+            dec_context_emb,\
+            dec_attn,\
+            encdec_token_emb,\
+            encdec_context_emb,\
+            encdec_attn = layer(x, memory, src_mask, tgt_mask)
+            
+            if dec_token_emb is not None:
+                
+                multihead_dec_token_emb = torch.cat((multihead_dec_token_emb, dec_token_emb.unsqueeze(0)), 0)
+                multihead_dec_context_emb = torch.cat((multihead_dec_context_emb, dec_context_emb.unsqueeze(0)), 0)
+                multihead_dec_attn = torch.cat((multihead_dec_attn, dec_attn.unsqueeze(0)), 0)
+                multihead_encdec_token_emb = torch.cat((multihead_encdec_token_emb, encdec_token_emb.unsqueeze(0)), 0)
+                multihead_encdec_context_emb = torch.cat((multihead_encdec_context_emb, encdec_context_emb.unsqueeze(0)), 0)
+                multihead_encdec_attn = torch.cat((multihead_encdec_attn, encdec_attn.unsqueeze(0)), 0)
+                x = x
+
+            else:
+                x = x
+                
+        if multihead_dec_token_emb.shape[0] == 6: # collected all layers
+            torch.save(multihead_dec_attn, base + f'test_dec_attn/{img_num}.pt')
+            torch.save(multihead_dec_context_emb, base + f'test_dec_context_emb/{img_num}.pt')
+            torch.save(multihead_dec_token_emb, base + f'test_dec_token_emb/{img_num}.pt')
+            torch.save(multihead_encdec_attn, base + f'test_encdec_attn/{img_num}.pt')
+            torch.save(multihead_encdec_context_emb, base + f'test_encdec_context_emb/{img_num}.pt')
+            torch.save(multihead_encdec_token_emb, base + f'test_encdec_token_emb/{img_num}.pt')
+            img_num += 1
+            #print(multihead_dec_attn.shape)
+            #print(multihead_dec_context_emb.shape)
+            #print(multihead_dec_token_emb.shape)
+            #print(multihead_encdec_attn.shape)
+            #print(multihead_encdec_context_emb.shape)
+            #print(multihead_encdec_token_emb.shape)
+            #print(img_num)
+                
         return self.norm(x)
 
 class DecoderLayer(nn.Module):
@@ -151,9 +242,27 @@ class DecoderLayer(nn.Module):
     def forward(self, x, memory, src_mask, tgt_mask):
         "Follow Figure 1 (right) for connections."
         m = memory
-        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, tgt_mask))
-        x = self.sublayer[1](x, lambda x: self.src_attn(x, m, m, src_mask))
-        return self.sublayer[2](x, self.feed_forward)
+        #print('DECODER LAYER')
+        
+        dec_token_emb, dec_context_emb, dec_attn = self.self_attn(x, x, x, tgt_mask, one_out=None)
+        
+        if dec_context_emb is not None and dec_attn is not None: 
+            x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, tgt_mask, one_out=True))
+            encdec_token_emb, encdec_context_emb, encdec_attn = self.src_attn(x, m, m, src_mask, one_out=None)
+            x = self.sublayer[1](x, lambda x: self.src_attn(x, m, m, src_mask, one_out=True))
+            return self.sublayer[2](x, self.feed_forward),\
+                   dec_token_emb,\
+                   dec_context_emb,\
+                   dec_attn,\
+                   encdec_token_emb,\
+                   encdec_context_emb,\
+                   encdec_attn
+
+        else:
+            x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, tgt_mask, one_out=True))
+            x = self.sublayer[1](x, lambda x: self.src_attn(x, m, m, src_mask, one_out=True))
+            return self.sublayer[2](x, self.feed_forward),\
+                   None, None, None, None, None, None
 
 def subsequent_mask(size):
     "Mask out subsequent positions."
@@ -173,10 +282,10 @@ def attention(query, key, value, mask=None, dropout=None):
         p_attn = dropout(p_attn)
     return torch.matmul(p_attn, value), p_attn
 
-class MultiHeadedAttention(nn.Module):
+class DecMultiHeadedAttention(nn.Module):
     def __init__(self, h, d_model, dropout=0.1):
         "Take in model size and number of heads."
-        super(MultiHeadedAttention, self).__init__()
+        super(DecMultiHeadedAttention, self).__init__()
         assert d_model % h == 0
         # We assume d_v always equals d_k
         self.d_k = d_model // h
@@ -185,7 +294,7 @@ class MultiHeadedAttention(nn.Module):
         self.attn = None
         self.dropout = nn.Dropout(p=dropout)
 
-    def forward(self, query, key, value, mask=None):
+    def forward(self, query, key, value, mask=None, one_out=None):
         "Implements Figure 2"
         if mask is not None:
             # Same mask applied to all h heads.
@@ -200,11 +309,75 @@ class MultiHeadedAttention(nn.Module):
         # 2) Apply attention on all the projected vectors in batch.
         x, self.attn = attention(query, key, value, mask=mask,
                                  dropout=self.dropout)
-
+        
         # 3) "Concat" using a view and apply a final linear.
         x = x.transpose(1, 2).contiguous() \
              .view(nbatches, -1, self.h * self.d_k)
-        return self.linears[-1](x)
+
+        #print('DEC ATTN', self.attn.shape)
+        #print('DEC CONTEXT', x.shape)
+        #print('DEC EMB', self.linears[-1](x).shape)
+        
+        # beam size 5, num heads 8, seq length 21
+        if self.attn.shape == torch.Size([5, 8, 21, 21]) and one_out is None:
+            token_emb = self.linears[-1](x)
+            context_emb = x.view(nbatches, -1, self.h, self.d_k)
+            context_emb = F.normalize(context_emb, dim=2)
+            context_emb = context_emb.view(nbatches, -1, self.h * self.d_k)
+            return token_emb, context_emb, self.attn
+        if one_out is not None:
+            return self.linears[-1](x)
+        elif one_out is None and self.attn.shape != torch.Size([5, 8, 21, 21]):
+            return self.linears[-1](x), None, None
+        
+    
+class EncDecMultiHeadedAttention(nn.Module):
+    def __init__(self, h, d_model, dropout=0.1):
+        "Take in model size and number of heads."
+        super(EncDecMultiHeadedAttention, self).__init__()
+        assert d_model % h == 0
+        # We assume d_v always equals d_k
+        self.d_k = d_model // h
+        self.h = h
+        self.linears = clones(nn.Linear(d_model, d_model), 4)
+        self.attn = None
+        self.dropout = nn.Dropout(p=dropout)
+
+    def forward(self, query, key, value, mask=None, one_out=None):
+        "Implements Figure 2"
+        if mask is not None:
+            # Same mask applied to all h heads.
+            mask = mask.unsqueeze(1)
+        nbatches = query.size(0)
+
+        # 1) Do all the linear projections in batch from d_model => h x d_k
+        query, key, value = \
+            [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
+             for l, x in zip(self.linears, (query, key, value))]
+
+        # 2) Apply attention on all the projected vectors in batch.
+        x, self.attn = attention(query, key, value, mask=mask,
+                                 dropout=self.dropout)
+        
+        # 3) "Concat" using a view and apply a final linear.
+        x = x.transpose(1, 2).contiguous() \
+             .view(nbatches, -1, self.h * self.d_k)
+
+        #print('ENCDEC ATTN', self.attn.shape)
+        #print('ENCDEC CONTEXT', x.shape)
+        #print('ENCDEC EMB', self.linears[-1](x).shape)
+        
+        # beam size 5, num heads 8, seq length 21
+        if self.attn.shape == torch.Size([5, 8, 21, 36]) and one_out is None:
+            token_emb = self.linears[-1](x)
+            context_emb = x.view(nbatches, -1, self.h, self.d_k)
+            context_emb = F.normalize(context_emb, dim=2)
+            context_emb = context_emb.view(nbatches, -1, self.h * self.d_k)
+            return token_emb, context_emb, self.attn
+        if one_out is not None:
+            return self.linears[-1](x)
+        elif one_out is None and self.attn.shape != torch.Size([5, 8, 21, 36]):
+            return self.linears[-1](x), None, None
 
 
 def box_attention(query, key, value, box_relation_embds_matrix, mask=None, dropout=None):
@@ -267,13 +440,13 @@ class BoxMultiHeadedAttention(nn.Module):
 
         #matrices W_q, W_k, W_v, and one last projection layer
         self.linears = clones(nn.Linear(d_model, d_model), 4)
-        self.WGs = clones(nn.Linear(geo_feature_dim, 1, bias=True),8)
+        self.WGs = clones(nn.Linear(geo_feature_dim, 1, bias=True), 8)
 
         self.attn = None
         self.dropout = nn.Dropout(p=dropout)
 
 
-    def forward(self, input_query, input_key, input_value, input_box, mask=None):
+    def forward(self, input_query, input_key, input_value, input_box, mask=None, one_out=None):
         "Implements Figure 2 of Relation Network for Object Detection"
         if mask is not None:
             # Same mask applied to all h heads.
@@ -291,7 +464,7 @@ class BoxMultiHeadedAttention(nn.Module):
         box_size_per_head = list(relative_geometry_embeddings.shape[:3])
         box_size_per_head.insert(1, 1)
         relative_geometry_weights_per_head = [l(flatten_relative_geometry_embeddings).view(box_size_per_head) for l in self.WGs]
-        relative_geometry_weights = torch.cat((relative_geometry_weights_per_head),1)
+        relative_geometry_weights = torch.cat((relative_geometry_weights_per_head), 1)
         relative_geometry_weights = F.relu(relative_geometry_weights)
 
         # 2) Apply attention on all the projected vectors in batch.
@@ -308,8 +481,19 @@ class BoxMultiHeadedAttention(nn.Module):
         # already an outer skip connection surrounding this layer.
         if self.legacy_extra_skip:
             x = input_value + x
+            
+        
+        if self.box_attn.shape == torch.Size([1, 8, 36, 36]) and one_out is None:
+            token_emb = self.linears[-1](x)
+            context_emb = x.view(nbatches, -1, self.h, self.d_k)
+            context_emb = F.normalize(context_emb, dim=2)
+            context_emb = context_emb.view(nbatches, -1, self.h * self.d_k)
+            return token_emb, context_emb, self.box_attn
+        if one_out is not None:
+            return self.linears[-1](x)
+        elif one_out is None and self.box_attn.shape != torch.Size([1, 8, 36, 36]):
+            return self.linears[-1](x), None, None
 
-        return self.linears[-1](x)
 
 
 class PositionwiseFeedForward(nn.Module):
@@ -362,13 +546,14 @@ class RelationTransformerModel(CaptionModel):
         "Helper: Construct a model from hyperparameters."
         c = copy.deepcopy
         bbox_attn = BoxMultiHeadedAttention(h, d_model, trignometric_embedding, legacy_extra_skip)
-        attn = MultiHeadedAttention(h, d_model)
+        dec_attn = DecMultiHeadedAttention(h, d_model)
+        enc_dec_attn = EncDecMultiHeadedAttention(h, d_model)
         ff = PositionwiseFeedForward(d_model, d_ff, dropout)
         position = PositionalEncoding(d_model, dropout)
         #position = BoxEncoding(d_model, dropout)
         model = EncoderDecoder(
             Encoder(EncoderLayer(d_model, c(bbox_attn), c(ff), dropout), N),
-            Decoder(DecoderLayer(d_model, c(attn), c(attn),
+            Decoder(DecoderLayer(d_model, c(dec_attn), c(enc_dec_attn),
                                  c(ff), dropout), N),
             lambda x:x, # nn.Sequential(Embeddings(d_model, src_vocab), c(position)),
             nn.Sequential(Embeddings(d_model, tgt_vocab), c(position)),

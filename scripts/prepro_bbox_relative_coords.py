@@ -67,14 +67,12 @@ def get_bbox_relative_coords(params):
         os.makedirs(rel_box_dir)
         
     files = sorted(glob(pth.join(input_feat_dir, '*')))
-    #l = ['147615', '370391']
     for ind, file in enumerate(files):
         load_file = np.load(file)
         boxes = load_file['bbox']
         if ind % 1000 == 0:
             print('processed %d images (of %d)' %(ind, len(files)))
         filenumber = file.split('/')[-1].split('.')[0]
-        #if filenumber in l:
         img_path = coco_ids_to_paths[filenumber]
         img_array = get_numpy_image(img_path)
         height = load_file['image_h']
@@ -89,9 +87,9 @@ if __name__ == "__main__":
     parser.add_argument('--input_json', type=str, default='../data/dataset_coco.json', help='input json file to process into hdf5')
     parser.add_argument('--image_root', type=str, default='/scratch/nikolai/',
                     help='In case the image paths have to be preprended with a root path to an image folder')
-    parser.add_argument('--input_feat_dir', type=str, default='/scratch/nikolai/frcnn_train2014/',
+    parser.add_argument('--input_feat_dir', type=str, default='/scratch/nikolai/frcnn_val2014/',
                     help='path to the directory containing the feature files which contain information about boxes')
-    parser.add_argument('--output_dir', type=str, default='/scratch/nikolai/box_relative_train/',
+    parser.add_argument('--output_dir', type=str, default='/scratch/nikolai/box_relative_val/',
                     help='directory containing the files with relative coordinates of the bboxes')
 
     args = parser.parse_args()

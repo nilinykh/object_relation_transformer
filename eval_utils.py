@@ -18,6 +18,7 @@ from misc.report import ReportData
 
 REPORT_DATA_PKL_FILE_TEMPLATE = '%s_%s_report_data.pkl'
 
+img_num = 0
 
 import opts
 #model_opts = opts.parse_opt()
@@ -86,6 +87,8 @@ def eval_split(model, crit, loader, eval_kwargs={}):
     model.eval()
 
     loader.reset_iterator(split)
+    
+    global img_num
 
     n = 0
     loss = 0
@@ -149,9 +152,10 @@ def eval_split(model, crit, loader, eval_kwargs={}):
             predictions.append(entry)
             if eval_kwargs.get('dump_images', 0) == 1:
                 # dump the raw image to vis/ folder
-                cmd = 'cp "' + os.path.join(eval_kwargs['image_root'], data['infos'][k]['file_path']) + '" vis/imgs/' + str(image_id) + '.jpg' # still gross
+                cmd = 'cp "' + os.path.join(eval_kwargs['image_root'], data['infos'][k]['file_path']) + '" vis/imgs/' + str(image_id) + '_' + str(img_num) + '.jpg' # still gross
                 print(cmd)
                 os.system(cmd)
+                img_num += 1
 
             if verbose:
                 print('image %s: %s' %(entry['image_id'], entry['caption']))
