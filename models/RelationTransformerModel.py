@@ -33,6 +33,7 @@ import numpy as np
 
 base = '/home/xilini/object_relation_transformer/data/representations/'
 img_num = 0
+seq_actual_length = 0
 
 from .CaptionModel import CaptionModel
 from .AttModel import sort_pack_padded_sequence, pad_unsort_packed_sequence, pack_wrapper
@@ -105,6 +106,7 @@ class Encoder(nn.Module):
             else:
                 x = x
                 
+        #print(multihead_enc_token_emb.shape)
         if multihead_enc_token_emb.shape[0] == 6: # collected all layers
             torch.save(multihead_enc_attn, base + f'test_enc_attn/{img_num}.pt')
             torch.save(multihead_enc_context_emb, base + f'test_enc_context_emb/{img_num}.pt')
@@ -211,6 +213,7 @@ class Decoder(nn.Module):
             else:
                 x = x
                 
+        #print(multihead_dec_token_emb.shape)
         if multihead_dec_token_emb.shape[0] == 6: # collected all layers
             torch.save(multihead_dec_attn, base + f'test_dec_attn/{img_num}.pt')
             torch.save(multihead_dec_context_emb, base + f'test_dec_context_emb/{img_num}.pt')
@@ -295,12 +298,16 @@ class DecMultiHeadedAttention(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, query, key, value, mask=None, one_out=None):
+        
+        global seq_actual_length
+        
         "Implements Figure 2"
         if mask is not None:
             # Same mask applied to all h heads.
             mask = mask.unsqueeze(1)
+        
         nbatches = query.size(0)
-
+        
         # 1) Do all the linear projections in batch from d_model => h x d_k
         query, key, value = \
             [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
@@ -317,9 +324,12 @@ class DecMultiHeadedAttention(nn.Module):
         #print('DEC ATTN', self.attn.shape)
         #print('DEC CONTEXT', x.shape)
         #print('DEC EMB', self.linears[-1](x).shape)
+        #print(seq_actual_length)
         
         # beam size 5, num heads 8, seq length 21
-        if self.attn.shape == torch.Size([5, 8, 21, 21]) and one_out is None:
+        # TRAIN EMBEDDINGS: beam size 1, seq length is always the max length of the actual caption
+        if self.attn.shape == torch.Size([5, 8, 17, 17]) and one_out is None:
+        #if self.attn.shape == torch.Size([1, 8, seq_actual_length, seq_actual_length]) and one_out is None:
             token_emb = self.linears[-1](x)
             context_emb = x.view(nbatches, -1, self.h, self.d_k)
             context_emb = F.normalize(context_emb, dim=2)
@@ -327,7 +337,8 @@ class DecMultiHeadedAttention(nn.Module):
             return token_emb, context_emb, self.attn
         if one_out is not None:
             return self.linears[-1](x)
-        elif one_out is None and self.attn.shape != torch.Size([5, 8, 21, 21]):
+        elif one_out is None and self.attn.shape != torch.Size([5, 8, 17, 17]):
+        #elif one_out is None and self.attn.shape != torch.Size([1, 8, seq_actual_length, seq_actual_length]):
             return self.linears[-1](x), None, None
         
     
@@ -344,6 +355,9 @@ class EncDecMultiHeadedAttention(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, query, key, value, mask=None, one_out=None):
+        
+        global seq_actual_length
+        
         "Implements Figure 2"
         if mask is not None:
             # Same mask applied to all h heads.
@@ -366,9 +380,12 @@ class EncDecMultiHeadedAttention(nn.Module):
         #print('ENCDEC ATTN', self.attn.shape)
         #print('ENCDEC CONTEXT', x.shape)
         #print('ENCDEC EMB', self.linears[-1](x).shape)
+        #print(seq_actual_length)
         
         # beam size 5, num heads 8, seq length 21
-        if self.attn.shape == torch.Size([5, 8, 21, 36]) and one_out is None:
+        #print(self.attn.shape)
+        if self.attn.shape == torch.Size([5, 8, 17, 36]) and one_out is None:
+        #if self.attn.shape == torch.Size([1, 8, seq_actual_length, 36]) and one_out is None:
             token_emb = self.linears[-1](x)
             context_emb = x.view(nbatches, -1, self.h, self.d_k)
             context_emb = F.normalize(context_emb, dim=2)
@@ -376,7 +393,8 @@ class EncDecMultiHeadedAttention(nn.Module):
             return token_emb, context_emb, self.attn
         if one_out is not None:
             return self.linears[-1](x)
-        elif one_out is None and self.attn.shape != torch.Size([5, 8, 21, 36]):
+        elif one_out is None and self.attn.shape != torch.Size([5, 8, 17, 36]):
+        #elif one_out is None and self.attn.shape != torch.Size([1, 8, seq_actual_length, 36]):
             return self.linears[-1](x), None, None
 
 
@@ -482,7 +500,10 @@ class BoxMultiHeadedAttention(nn.Module):
         if self.legacy_extra_skip:
             x = input_value + x
             
-        
+        #print('ENC ATTN', self.box_attn.shape)
+        #print('ENC TOKEN EMB', self.linears[-1](x).shape)
+        #print('ENC CONTEXT EMB', x.shape)
+            
         if self.box_attn.shape == torch.Size([1, 8, 36, 36]) and one_out is None:
             token_emb = self.linears[-1](x)
             context_emb = x.view(nbatches, -1, self.h, self.d_k)
@@ -511,6 +532,7 @@ class PositionwiseFeedForward(nn.Module):
 class Embeddings(nn.Module):
     def __init__(self, d_model, vocab):
         super(Embeddings, self).__init__()
+        # 9488 vs 9487 as vocab size
         self.lut = nn.Embedding(vocab, d_model)
         self.d_model = d_model
 
@@ -604,6 +626,7 @@ class RelationTransformerModel(CaptionModel):
         self.legacy_extra_skip = getattr(opt, 'legacy_extra_skip', False)
 
         tgt_vocab = self.vocab_size + 1
+        
         self.model = self.make_model(
             0, tgt_vocab, N=opt.num_layers, d_model=opt.input_encoding_size,
             d_ff=opt.rnn_size,
@@ -757,6 +780,12 @@ class RelationTransformerModel(CaptionModel):
         return seq, seqLogprobs
 
     def _sample(self, fc_feats, att_feats, boxes, att_masks=None, opt={}):
+                        
+        #print('ground truth texts', fc_feats, fc_feats.shape)
+        global seq_actual_length
+        #seq_actual_length = torch.count_nonzero(fc_feats).item()
+        #self.seq_length = seq_actual_length
+        
         sample_max = opt.get('sample_max', 1)
         beam_size = opt.get('beam_size', 1)
         temperature = opt.get('temperature', 1.0)
@@ -773,12 +802,14 @@ class RelationTransformerModel(CaptionModel):
 
         seq = att_feats.new_zeros((batch_size, self.seq_length), dtype=torch.long)
         seqLogprobs = att_feats.new_zeros(batch_size, self.seq_length)
-
+        
         for t in range(self.seq_length + 1):
             if t == 0: # input <bos>
-                it = fc_feats.new_zeros(batch_size, dtype=torch.long)
+                it = att_feats.new_zeros(batch_size, dtype=torch.long)
 
+            #print('this it', it)
             logprobs, state = self.get_logprobs_state(it, memory, att_masks, state)
+            
             if decoding_constraint and t > 0:
                 tmp = output.new_zeros(output.size(0), self.vocab_size + 1)
                 tmp.scatter_(1, seq[:,t-1].data.unsqueeze(1), float('-inf'))
@@ -789,7 +820,11 @@ class RelationTransformerModel(CaptionModel):
                 break
             if sample_max:
                 sampleLogprobs, it = torch.max(logprobs.data, 1)
+                #print('actually predicted', it.view(-1).long())
+                #forced_it = fc_feats[t+1]
+                #it = forced_it
                 it = it.view(-1).long()
+                #print('forced predicted', it, it.shape)
             else:
                 if temperature == 1.0:
                     prob_prev = torch.exp(logprobs.data) # fetch prev distribution: shape Nx(M+1)
@@ -806,7 +841,8 @@ class RelationTransformerModel(CaptionModel):
             else:
                 unfinished = unfinished * (it > 0)
             it = it * unfinished.type_as(it)
-            seq[:,t] = it
+            seq[:, t] = it
+            #print('final sequence', seq, seq.shape)
             seqLogprobs[:,t] = sampleLogprobs.view(-1)
             # quit loop if all sequences have finished
             if unfinished.sum() == 0:

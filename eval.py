@@ -130,7 +130,8 @@ if opt.batch_size == 0:
     opt.batch_size = infos['opt'].batch_size
 if len(opt.id) == 0:
     opt.id = infos['opt'].id
-opt.seq_length = 20
+    
+opt.seq_length = 16
     
 
 ignore = ["id", "batch_size", "beam_size", "start_from", "language_eval"]
@@ -168,8 +169,10 @@ else:
                             'batch_size': opt.batch_size,
                             'cnn_model': opt.cnn_model,
                             'cnn_weight_dir': opt.cnn_weight_dir})
+
 # When eval using provided pretrained model, the vocab may be different from what you have in your cocotalk.json
 # So make sure to use the vocab in infos file.
+# UNCOMMENT WHEN EVALUATING ON THE TEST SET, USE COCOTALK.JSON VOCAB WHEN RUNNING ON TRAIN SET
 loader.ix_to_word = infos['vocab']
 
 

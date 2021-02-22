@@ -119,12 +119,16 @@ def eval_split(model, crit, loader, eval_kwargs={}):
         # forward the model to also get generated samples for each image
         # Only leave one feature for each image, in case duplicate sample
         
-        tmp = [None,
+        #tmp = [None,
+        #    data['att_feats'][np.arange(loader.batch_size) * loader.seq_per_img],
+        #    data['att_masks'][np.arange(loader.batch_size) * loader.seq_per_img] if data['att_masks'] is not None else None]
+        tmp = [data['labels'][0],
             data['att_feats'][np.arange(loader.batch_size) * loader.seq_per_img],
             data['att_masks'][np.arange(loader.batch_size) * loader.seq_per_img] if data['att_masks'] is not None else None]
-
+        
         tmp = [torch.from_numpy(_).cuda() if _ is not None else _ for _ in tmp]
-        fc_feats, att_feats, att_masks = tmp
+        #fc_feats, att_feats, att_masks = tmp
+        data_labels, att_feats, att_masks = tmp
 
         # forward the model to also get generated samples for each image
         with torch.no_grad():
@@ -132,7 +136,10 @@ def eval_split(model, crit, loader, eval_kwargs={}):
             if use_box==True:
                 boxes_data= data['boxes'][np.arange(loader.batch_size) * loader.seq_per_img]
                 boxes = torch.from_numpy(boxes_data).cuda() if boxes_data is not None else boxes_data
-                seq = model(fc_feats, att_feats, boxes, att_masks, opt=eval_kwargs, mode='sample')[0].data
+                
+                #seq = model(fc_feats, att_feats, boxes, att_masks, opt=eval_kwargs, mode='sample')[0].data
+                seq = model(data_labels, att_feats, boxes, att_masks, opt=eval_kwargs, mode='sample')[0].data
+                
             else:
                 seq = model(fc_feats, att_feats, att_masks, opt=eval_kwargs, mode='sample')[0].data
 
@@ -141,6 +148,7 @@ def eval_split(model, crit, loader, eval_kwargs={}):
             for i in range(loader.batch_size):
                 print('\n'.join([utils.decode_sequence(loader.get_vocab(), _['seq'].unsqueeze(0))[0] for _ in model.done_beams[i]]))
                 print('--' * 10)
+        
         sents = utils.decode_sequence(loader.get_vocab(), seq)
 
         for k, sent in enumerate(sents):
