@@ -67,7 +67,7 @@ parser.add_argument('--sample_max', type=int, default=1,
                 help='1 = sample argmax words. 0 = sample from distributions.')
 parser.add_argument('--max_ppl', type=int, default=0,
                 help='beam search by max perplexity or max probability.')
-parser.add_argument('--beam_size', type=int, default=5,
+parser.add_argument('--beam_size', type=int, default=1,
                 help='used when sample_max = 1, indicates number of beams in beam search. Usually 2 or 3 works well. More is not better. Set this to 1 for faster runtime but a bit worse performance.')
 parser.add_argument('--group_size', type=int, default=1,
                 help='used for diverse beam search. if group_size is 1, then it\'s normal beam search')
@@ -85,7 +85,7 @@ parser.add_argument('--image_root', type=str, default='/scratch/nikolai/',
 # For evaluation on MSCOCO images from some split:
 #parser.add_argument('--input_fc_dir', type=str, default='',
 #                help='path to the h5file containing the preprocessed dataset')
-parser.add_argument('--input_feat_dir', type=str, default='/scratch/nikolai/frcnn_val2014/',
+parser.add_argument('--input_feat_dir', type=str, default='/scratch/nikolai/frcnn_train2014/',
                 help='path to the h5file containing the preprocessed dataset')
 #parser.add_argument('--input_box_dir', type=str, default='',
 #                help='path to the h5file containing the preprocessed dataset')
@@ -95,12 +95,12 @@ parser.add_argument('--input_json', type=str, default='./data/cocotalk.json',
                 help='path to the json file containing additional info and vocab. empty = fetch from model checkpoint.')
 parser.add_argument('--cnn_weight_dir', type=str, default='./data/imagenet_weights/',
                 help='path to the directory containing the weights of a model trained on imagenet')
-parser.add_argument('--split', type=str, default='test',
+parser.add_argument('--split', type=str, default='train',
                 help='if running on MSCOCO images, which split to use: val|test|train')
 parser.add_argument('--coco_json', type=str, default='',
                 help='if nonempty then use this file in DataLoaderRaw (see docs there). Used only in MSCOCO test evaluation, where we have a specific json file of only test set images.')
 
-parser.add_argument('--input_rel_box_dir',type=str, default='/scratch/nikolai/box_relative_val/',
+parser.add_argument('--input_rel_box_dir',type=str, default='/scratch/nikolai/box_relative_train/',
                 help="this directory contains the bboxes in relative coordinates for the corresponding image features in --input_att_dir")
 # misc
 parser.add_argument('--id', type=str, default='',
@@ -132,7 +132,6 @@ if len(opt.id) == 0:
     opt.id = infos['opt'].id
     
 opt.seq_length = 16
-    
 
 ignore = ["id", "batch_size", "beam_size", "start_from", "language_eval"]
 
@@ -173,7 +172,7 @@ else:
 # When eval using provided pretrained model, the vocab may be different from what you have in your cocotalk.json
 # So make sure to use the vocab in infos file.
 # UNCOMMENT WHEN EVALUATING ON THE TEST SET, USE COCOTALK.JSON VOCAB WHEN RUNNING ON TRAIN SET
-loader.ix_to_word = infos['vocab']
+#loader.ix_to_word = infos['vocab']
 
 
 # Set sample options

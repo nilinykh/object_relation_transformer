@@ -108,9 +108,9 @@ class Encoder(nn.Module):
                 
         #print(multihead_enc_token_emb.shape)
         if multihead_enc_token_emb.shape[0] == 6: # collected all layers
-            torch.save(multihead_enc_attn, base + f'test_enc_attn/{img_num}.pt')
-            torch.save(multihead_enc_context_emb, base + f'test_enc_context_emb/{img_num}.pt')
-            torch.save(multihead_enc_token_emb, base + f'test_enc_token_emb/{img_num}.pt')
+            torch.save(multihead_enc_attn, base + f'train_enc_attn/{img_num}.pt')
+            torch.save(multihead_enc_context_emb, base + f'train_enc_context_emb/{img_num}.pt')
+            torch.save(multihead_enc_token_emb, base + f'train_enc_token_emb/{img_num}.pt')
             #print(multihead_enc_attn.shape)
             #print(multihead_enc_context_emb.shape)
             #print(multihead_enc_token_emb.shape)
@@ -215,12 +215,12 @@ class Decoder(nn.Module):
                 
         #print(multihead_dec_token_emb.shape)
         if multihead_dec_token_emb.shape[0] == 6: # collected all layers
-            torch.save(multihead_dec_attn, base + f'test_dec_attn/{img_num}.pt')
-            torch.save(multihead_dec_context_emb, base + f'test_dec_context_emb/{img_num}.pt')
-            torch.save(multihead_dec_token_emb, base + f'test_dec_token_emb/{img_num}.pt')
-            torch.save(multihead_encdec_attn, base + f'test_encdec_attn/{img_num}.pt')
-            torch.save(multihead_encdec_context_emb, base + f'test_encdec_context_emb/{img_num}.pt')
-            torch.save(multihead_encdec_token_emb, base + f'test_encdec_token_emb/{img_num}.pt')
+            torch.save(multihead_dec_attn, base + f'train_dec_attn/{img_num}.pt')
+            torch.save(multihead_dec_context_emb, base + f'train_dec_context_emb/{img_num}.pt')
+            torch.save(multihead_dec_token_emb, base + f'train_dec_token_emb/{img_num}.pt')
+            torch.save(multihead_encdec_attn, base + f'train_encdec_attn/{img_num}.pt')
+            torch.save(multihead_encdec_context_emb, base + f'train_encdec_context_emb/{img_num}.pt')
+            torch.save(multihead_encdec_token_emb, base + f'train_encdec_token_emb/{img_num}.pt')
             img_num += 1
             #print(multihead_dec_attn.shape)
             #print(multihead_dec_context_emb.shape)
@@ -326,9 +326,9 @@ class DecMultiHeadedAttention(nn.Module):
         #print('DEC EMB', self.linears[-1](x).shape)
         #print(seq_actual_length)
         
-        # beam size 5, num heads 8, seq length 21
+        # beam size 5, num heads 8, seq length 17
         # TRAIN EMBEDDINGS: beam size 1, seq length is always the max length of the actual caption
-        if self.attn.shape == torch.Size([5, 8, 17, 17]) and one_out is None:
+        if self.attn.shape == torch.Size([1, 8, seq_actual_length, seq_actual_length]) and one_out is None:
         #if self.attn.shape == torch.Size([1, 8, seq_actual_length, seq_actual_length]) and one_out is None:
             token_emb = self.linears[-1](x)
             context_emb = x.view(nbatches, -1, self.h, self.d_k)
@@ -337,7 +337,7 @@ class DecMultiHeadedAttention(nn.Module):
             return token_emb, context_emb, self.attn
         if one_out is not None:
             return self.linears[-1](x)
-        elif one_out is None and self.attn.shape != torch.Size([5, 8, 17, 17]):
+        elif one_out is None and self.attn.shape != torch.Size([1, 8, seq_actual_length, seq_actual_length]):
         #elif one_out is None and self.attn.shape != torch.Size([1, 8, seq_actual_length, seq_actual_length]):
             return self.linears[-1](x), None, None
         
@@ -382,9 +382,9 @@ class EncDecMultiHeadedAttention(nn.Module):
         #print('ENCDEC EMB', self.linears[-1](x).shape)
         #print(seq_actual_length)
         
-        # beam size 5, num heads 8, seq length 21
+        # beam size 5, num heads 8, seq length 17
         #print(self.attn.shape)
-        if self.attn.shape == torch.Size([5, 8, 17, 36]) and one_out is None:
+        if self.attn.shape == torch.Size([1, 8, seq_actual_length, 36]) and one_out is None:
         #if self.attn.shape == torch.Size([1, 8, seq_actual_length, 36]) and one_out is None:
             token_emb = self.linears[-1](x)
             context_emb = x.view(nbatches, -1, self.h, self.d_k)
@@ -393,7 +393,7 @@ class EncDecMultiHeadedAttention(nn.Module):
             return token_emb, context_emb, self.attn
         if one_out is not None:
             return self.linears[-1](x)
-        elif one_out is None and self.attn.shape != torch.Size([5, 8, 17, 36]):
+        elif one_out is None and self.attn.shape != torch.Size([1, 8, seq_actual_length, 36]):
         #elif one_out is None and self.attn.shape != torch.Size([1, 8, seq_actual_length, 36]):
             return self.linears[-1](x), None, None
 
@@ -503,7 +503,7 @@ class BoxMultiHeadedAttention(nn.Module):
         #print('ENC ATTN', self.box_attn.shape)
         #print('ENC TOKEN EMB', self.linears[-1](x).shape)
         #print('ENC CONTEXT EMB', x.shape)
-            
+        
         if self.box_attn.shape == torch.Size([1, 8, 36, 36]) and one_out is None:
             token_emb = self.linears[-1](x)
             context_emb = x.view(nbatches, -1, self.h, self.d_k)
@@ -678,7 +678,7 @@ class RelationTransformerModel(CaptionModel):
         else:
             seq_mask = None
 
-        return att_feats,boxes, seq, att_masks, seq_mask
+        return att_feats, boxes, seq, att_masks, seq_mask
 
     def _forward(self, fc_feats, att_feats, boxes,  seq, att_masks=None):
 
@@ -781,10 +781,10 @@ class RelationTransformerModel(CaptionModel):
 
     def _sample(self, fc_feats, att_feats, boxes, att_masks=None, opt={}):
                         
-        #print('ground truth texts', fc_feats, fc_feats.shape)
+        print('ground truth texts', fc_feats, fc_feats.shape)
         global seq_actual_length
-        #seq_actual_length = torch.count_nonzero(fc_feats).item()
-        #self.seq_length = seq_actual_length
+        seq_actual_length = torch.count_nonzero(fc_feats).item()
+        self.seq_length = seq_actual_length
         
         sample_max = opt.get('sample_max', 1)
         beam_size = opt.get('beam_size', 1)
@@ -820,11 +820,11 @@ class RelationTransformerModel(CaptionModel):
                 break
             if sample_max:
                 sampleLogprobs, it = torch.max(logprobs.data, 1)
-                #print('actually predicted', it.view(-1).long())
-                #forced_it = fc_feats[t+1]
-                #it = forced_it
+                print('actually predicted', it.view(-1).long())
+                forced_it = fc_feats[t+1]
+                it = forced_it
                 it = it.view(-1).long()
-                #print('forced predicted', it, it.shape)
+                print('forced predicted', it, it.shape)
             else:
                 if temperature == 1.0:
                     prob_prev = torch.exp(logprobs.data) # fetch prev distribution: shape Nx(M+1)

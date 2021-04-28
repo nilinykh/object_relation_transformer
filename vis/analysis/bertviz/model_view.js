@@ -6,30 +6,49 @@
  * Change log:
  *
  * 02/01/19  Jesse Vig   Initial implementation
- */
+ * 12/31/20  Jesse Vig   Support multiple visualizations in single notebook.
+ * 01/19/21  Jesse Vig   Support light/dark modes
+ * 02/06/21  Jesse Vig   Move require config from separate jupyter notebook step
+ **/
+
+require.config({
+  paths: {
+      d3: '//cdnjs.cloudflare.com/ajax/libs/d3/5.7.0/d3.min',
+    jquery: '//ajax.googleapis.com/ajax/libs/jquery/2.0.0/jquery.min',
+  }
+});
 
 requirejs(['jquery', 'd3'], function($, d3) {
 
-        var params = window.params;
-        var config = {};
+        const params = PYTHON_PARAMS; // HACK: PYTHON_PARAMS is a template marker that is replaced by actual params.
+        const config = {};
 
         const MIN_X = 0;
         const MIN_Y = 0;
-
         const DIV_WIDTH = 970;
-
         const THUMBNAIL_PADDING = 5;
-
         const DETAIL_WIDTH = 300;
         const DETAIL_ATTENTION_WIDTH = 140;
         const DETAIL_BOX_WIDTH = 80;
-        const DETAIL_BOX_HEIGHT = 20;
-        const DETAIL_PADDING = 5;
-        const DETAIL_HEADING_HEIGHT = 47;
+        const DETAIL_BOX_HEIGHT = 18;
+        const DETAIL_PADDING = 28;
+        const ATTN_PADDING = 0;
+        const DETAIL_HEADING_HEIGHT = 25;
         const DETAIL_HEADING_TEXT_SIZE = 15;
         const TEXT_SIZE = 13;
-
         const LAYER_COLORS = d3.schemeCategory10;
+        const PALETTE = {
+            'light': {
+                'text': 'black',
+                'background': 'white',
+                'highlight': '#F5F5F5'
+            },
+            'dark': {
+                'text': '#bbb',
+                'background': 'black',
+                'highlight': '#222'
+            }
+        }
 
         function render() {
 
@@ -47,13 +66,14 @@ requirejs(['jquery', 'd3'], function($, d3) {
             config.detailHeight = Math.max(config.leftText.length, config.rightText.length) * DETAIL_BOX_HEIGHT + 2 * DETAIL_PADDING + DETAIL_HEADING_HEIGHT;
             config.divHeight = config.numLayers * config.thumbnailHeight;
 
-            $("#vis").empty();
-            $("#vis").attr("height", config.divHeight);
-            config.svg = d3.select("#vis")
+            const vis = $(`#${config.rootDivId} #vis`)
+            vis.empty();
+            vis.attr("height", config.divHeight);
+            config.svg = d3.select(`#${config.rootDivId} #vis`)
                 .append('svg')
                 .attr("width", DIV_WIDTH)
                 .attr("height", config.divHeight)
-              .attr("fill", "black");
+              .attr("fill", getBackgroundColor());
 
             var i;
             var j;
@@ -93,30 +113,31 @@ requirejs(['jquery', 'd3'], function($, d3) {
                 y = maxY - config.detailHeight;
             }
             renderDetailFrame(x, y, layerIndex);
-            renderDetailHeading(x, y, layerIndex, headIndex);
-            renderText(config.leftText, "leftText", posLeftText, y + DETAIL_HEADING_HEIGHT, layerIndex);
-            renderDetailAttn(posAttention, y + DETAIL_HEADING_HEIGHT, att, layerIndex, headIndex);
-            renderText(config.rightText, "rightText", posRightText, y + DETAIL_HEADING_HEIGHT, layerIndex);
+            renderDetailHeading(x, y + Math.max(config.leftText.length, config.rightText.length) *
+                DETAIL_BOX_HEIGHT, layerIndex, headIndex);
+            renderDetailText(config.leftText, "leftText", posLeftText, y + DETAIL_PADDING, layerIndex);
+            renderDetailAttn(posAttention, y + DETAIL_PADDING, att, layerIndex, headIndex);
+            renderDetailText(config.rightText, "rightText", posRightText, y + DETAIL_PADDING, layerIndex);
         }
 
         function renderDetailHeading(x, y, layerIndex, headIndex) {
-            var fillColor = getColor(layerIndex);
+            var fillColor = getTextColor();
             config.svg.append("text")
                 .classed("detail", true)
                 .text('Layer ' + layerIndex + ", Head " + headIndex)
                 .attr("font-size", DETAIL_HEADING_TEXT_SIZE + "px")
                 .style("cursor", "default")
                 .style("-webkit-user-select", "none")
-                .style("font-weight", "bold")
                 .attr("fill", fillColor)
-                .attr("x", x + 87)
-                .attr("y", y + 16)
+                .attr("x", x + DETAIL_WIDTH / 2)
+                .attr("text-anchor", "middle")
+                .attr("y", y + 40)
                 .attr("height", DETAIL_HEADING_HEIGHT)
                 .attr("width", DETAIL_WIDTH)
                 .attr("dy", DETAIL_HEADING_TEXT_SIZE);
         }
 
-        function renderText(text, id, x, y, layerIndex) {
+        function renderDetailText(text, id, x, y, layerIndex) {
             var tokenContainer = config.svg.append("svg:g")
                 .classed("detail", true)
                 .selectAll("g")
@@ -124,7 +145,7 @@ requirejs(['jquery', 'd3'], function($, d3) {
                 .enter()
                 .append("g");
 
-            var fillColor = getColor(layerIndex);
+            var fillColor = getTextColor();
 
             tokenContainer.append("rect")
                 .classed("highlight", true)
@@ -134,7 +155,7 @@ requirejs(['jquery', 'd3'], function($, d3) {
                 .attr("width", DETAIL_BOX_WIDTH)
                 .attr("x", x)
                 .attr("y", function (d, i) {
-                    return y + i * DETAIL_BOX_HEIGHT - 1;
+                    return y + i * DETAIL_BOX_HEIGHT;
                 });
 
             var textContainer = tokenContainer.append("text")
@@ -198,8 +219,9 @@ requirejs(['jquery', 'd3'], function($, d3) {
                 .attr("height", config.thumbnailHeight)
                 .attr("width", config.thumbnailWidth)
                 .attr("stroke-width", 2)
-                .attr("stroke", getColor(layerIndex))
-                .attr("stroke-opacity", 0);
+                .attr("stroke", getLayerColor(layerIndex))
+                .attr("stroke-opacity", 0)
+                .attr("fill", getBackgroundColor());
             var x1 = x + THUMBNAIL_PADDING;
             var x2 = x1 + config.thumbnailWidth - 14;
             var y1 = y + THUMBNAIL_PADDING;
@@ -226,8 +248,8 @@ requirejs(['jquery', 'd3'], function($, d3) {
                 .attr("y2", function (d, targetIndex) {
                     return y1 + (targetIndex + .5) * config.thumbnailBoxHeight;
                 })
-                .attr("stroke-width", 3)
-                .attr("stroke", getColor(layerIndex))
+                .attr("stroke-width", 2.2)
+                .attr("stroke", getLayerColor(layerIndex))
                 .attr("stroke-opacity", function (d) {
                     return d;
                 });
@@ -241,7 +263,7 @@ requirejs(['jquery', 'd3'], function($, d3) {
 
             clickRegion.on("click", function (d, index) {
                 var attnBackgroundOther = config.svg.selectAll(".attn_background");
-                attnBackgroundOther.attr("fill", "black");
+                attnBackgroundOther.attr("fill", getBackgroundColor());
                 attnBackgroundOther.attr("stroke-opacity", 0);
 
                 config.svg.selectAll(".detail").remove();
@@ -249,12 +271,12 @@ requirejs(['jquery', 'd3'], function($, d3) {
                     renderDetail(att, layerIndex, headIndex);
                     config.detail_layer = layerIndex;
                     config.detail_head = headIndex;
-                    attnBackground.attr("fill", "#202020");
+                    attnBackground.attr("fill", getHighlightColor());
                     attnBackground.attr("stroke-opacity", .8);
                 } else {
                     config.detail_layer = null;
                     config.detail_head = null;
-                    attnBackground.attr("fill", "black");
+                    attnBackground.attr("fill", getBackgroundColor());
                     attnBackground.attr("stroke-opacity", 0);
                 }
             });
@@ -272,10 +294,9 @@ requirejs(['jquery', 'd3'], function($, d3) {
                 .attr("height", config.detailHeight)
                 .attr("width", DETAIL_WIDTH)
                 .style("opacity", 1)
-                .attr("fill", "white")
-                .attr("stroke-width", 2)
+                .attr("stroke-width", 1.5)
                 .attr("stroke-opacity", 0.7)
-                .attr("stroke", getColor(layerIndex));
+                .attr("stroke", getLayerColor(layerIndex));
         }
 
         function renderDetailAttn(x, y, att, layerIndex) {
@@ -296,35 +317,60 @@ requirejs(['jquery', 'd3'], function($, d3) {
                 })
                 .enter()
                 .append("line")
-                .attr("x1", x + DETAIL_PADDING)
+                .attr("x1", x + ATTN_PADDING)
                 .attr("y1", function (d) {
                     var sourceIndex = +this.parentNode.getAttribute("source-index");
                     return y + (sourceIndex + .5) * DETAIL_BOX_HEIGHT;
                 })
-                .attr("x2", x + DETAIL_ATTENTION_WIDTH - DETAIL_PADDING)
+                .attr("x2", x + DETAIL_ATTENTION_WIDTH - ATTN_PADDING)
                 .attr("y2", function (d, targetIndex) {
                     return y + (targetIndex + .5) * DETAIL_BOX_HEIGHT;
                 })
-                .attr("stroke-width", 2)
-                .attr("stroke", getColor(layerIndex))
+                .attr("stroke-width", 2.2)
+                .attr("stroke", getLayerColor(layerIndex))
                 .attr("stroke-opacity", function (d) {
                     return d;
                 });
         }
-        
-        function getColor(layer) {
+
+        function getLayerColor(layer) {
           return LAYER_COLORS[layer % 10];
         }
 
-        function initialize() {
-          config.attention = params['attention'];
-          config.filter = params['default_filter'];
+        function getTextColor() {
+            return PALETTE[config.mode]['text']
         }
 
-        $("#filter").on('change', function (e) {
-            config.filter = e.currentTarget.value;
-            render();
-        });
+        function getBackgroundColor() {
+           return PALETTE[config.mode]['background']
+        }
+
+        function getHighlightColor() {
+           return PALETTE[config.mode]['highlight']
+        }
+
+        function initialize() {
+            config.attention = params['attention'];
+            config.filter = params['default_filter'];
+            config.mode = params['display_mode'];
+            config.rootDivId = params['root_div_id'];
+            $(`#${config.rootDivId} #filter`).on('change', function (e) {
+                config.filter = e.currentTarget.value;
+                render();
+            });
+            // // Configure the display mode drop down
+            // var select = $(`#${config.rootDivId} #mode`)
+            // console.log('select', select)
+            // for(var i = 0;i < select.length;i++){
+            //     if(select[i].value == config.mode ){
+            //         select[i].selected = true;
+            //     }
+            // }
+            // $(`#${config.rootDivId} #mode`).on('change', function (e) {
+            //     config.mode = e.currentTarget.value;
+            //     render();
+            // });
+        }
 
         initialize();
         render();
